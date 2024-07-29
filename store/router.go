@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
+	"time"
 	"github.com/Layr-Labs/eigenda-proxy/commitments"
 	"github.com/Layr-Labs/eigenda-proxy/utils"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -13,18 +13,18 @@ import (
 )
 
 type Router struct {
-	log log.Logger
+	log     log.Logger
 	eigenda *EigenDAStore
-	mem *MemStore
-	s3 *S3Store
+	mem     *MemStore
+	s3      *S3Store
 }
 
 func NewRouter(eigenda *EigenDAStore, mem *MemStore, s3 *S3Store, l log.Logger) (*Router, error) {
 	return &Router{
-		log: l,
+		log:     l,
 		eigenda: eigenda,
-		mem: mem,
-		s3: s3,
+		mem:     mem,
+		s3:      s3,
 	}, nil
 }
 
@@ -54,9 +54,32 @@ func (r *Router) Get(ctx context.Context, key []byte, cm commitments.CommitmentM
 			r.log.Debug("Retrieving data from memstore")
 			return r.mem.Get(ctx, key)
 		}
-		
-		r.log.Debug("Retrieving data from eigenda")
-		return r.eigenda.Get(ctx, key)
+		if r.s3 != nil && r.s3.cfg.Backup {
+			r.log.Info("Retrieving data from S3", "key", crypto.Keccak256(key))
+			ctx2, cancel := context.WithTimeout(ctx, time.Minute)
+			value, err := r.s3.Get(ctx2, crypto.Keccak256(key))
+			cancel()
+			if err != nil {
+				return nil, err
+			}
+			r.log.Info("Got data from S3 now verifying")
+			return r.eigenda.DecodeAndVerify(ctx, key, value)
+
+		r.log.Info("Retrieving data from eigenda")
+		eigenDAvalue, err := r.eigenda.Get(ctx, key)
+
+		if r.s3 != nil && r.s3.cfg.Backup {
+			r.log.Info("Retrieving data from S3 backend to compare")
+			s3Value, err := r.s3.Get(ctx, key)
+			if err != nil {
+				return nil, err
+			}
+			if utils.EqualSlices(eigenDAvalue, s3Value) {
+				r.log.Info("expected data to be equal eigenDAvalue %s and s3Value %s", hexutil.Encode(eigenDAvalue), hexutil.Encode(s3Value))
+			}
+		}
+
+		return eigenDAvalue, err
 
 	default:
 		return nil, errors.New("could not determine which storage backend to route to based on unknown commitment mode")
@@ -70,7 +93,6 @@ func (r *Router) Put(ctx context.Context, cm commitments.CommitmentMode, key, va
 	case commitments.OptimismGeneric:
 		return r.PutWithKey(ctx, key, value)
 
-	
 	case commitments.OptimismAltDA, commitments.SimpleCommitmentMode:
 		return r.PutWithoutKey(ctx, value)
 
@@ -80,7 +102,8 @@ func (r *Router) Put(ctx context.Context, cm commitments.CommitmentMode, key, va
 
 }
 
-// PutWithoutKey ... 
+// PutWithoutKey ...
+//https://github.com/ConstellationCrypto/celestia-bedrock/blob/v1.7.6/op-batcher/batcher/driver.go
 func (r *Router) PutWithoutKey(ctx context.Context, value []byte) (key []byte, err error) {
 	if r.mem != nil {
 		r.log.Debug("Storing data to memstore")
@@ -106,8 +129,7 @@ func (r *Router) PutWithoutKey(ctx context.Context, value []byte) (key []byte, e
 
 }
 
-
-// PutWithKey is only supported for S3 storage backends using OP's alt-da keccak256 commitment type 
+// PutWithKey is only supported for S3 storage backends using OP's alt-da keccak256 commitment type
 func (r *Router) PutWithKey(ctx context.Context, key []byte, value []byte) ([]byte, error) {
 	if r.s3 == nil {
 		return nil, errors.New("S3 is disabled but is only supported for posting known commitment keys")

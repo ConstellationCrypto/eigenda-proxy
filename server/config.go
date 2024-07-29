@@ -37,7 +37,8 @@ const (
 	MemstoreFlagName           = "memstore.enabled"
 	MemstoreExpirationFlagName = "memstore.expiration"
 	// S3 flags
-	S3BucketFlagName          = "s3.bucket"
+	S3CredentialTypeFlagName  = "s3.credential-type" // #nosec G101
+	S3BucketFlagName          = "s3.bucket"          // #nosec G101
 	S3PathFlagName            = "s3.path"
 	S3EndpointFlagName        = "s3.endpoint"
 	S3AccessKeyIDFlagName     = "s3.access-key-id"     // #nosec G101
@@ -66,9 +67,8 @@ type Config struct {
 
 	// KZG vars
 	CacheDir string
-
-	G1Path string
-	G2Path string
+	G1Path   string
+	G2Path   string
 
 	MaxBlobLength      string
 	maxBlobLengthBytes uint64
@@ -133,11 +133,12 @@ func (c *Config) VerificationCfg() *verify.Config {
 func ReadConfig(ctx *cli.Context) Config {
 	cfg := Config{
 		S3Config: store.S3Config{
-			Bucket:          ctx.String(S3BucketFlagName),
-			Path:            ctx.String(S3PathFlagName),
-			Endpoint:        ctx.String(S3EndpointFlagName),
-			AccessKeyID:     ctx.String(S3AccessKeyIDFlagName),
-			AccessKeySecret: ctx.String(S3AccessKeySecretFlagName),
+			S3CredentialType: toS3CredentialType(ctx.String(S3CredentialTypeFlagName)),
+			Bucket:           ctx.String(S3BucketFlagName),
+			Path:             ctx.String(S3PathFlagName),
+			Endpoint:         ctx.String(S3EndpointFlagName),
+			AccessKeyID:      ctx.String(S3AccessKeyIDFlagName),
+			AccessKeySecret:  ctx.String(S3AccessKeySecretFlagName),
 		},
 		ClientConfig: clients.EigenDAClientConfig{
 			RPC:                          ctx.String(EigenDADisperserRPCFlagName),
@@ -165,6 +166,17 @@ func ReadConfig(ctx *cli.Context) Config {
 	return cfg
 }
 
+func toS3CredentialType(s string) store.S3CredentialType {
+	switch s {
+	case string(store.S3CredentialStatic):
+		return store.S3CredentialStatic
+	case string(store.S3CredentialIAM):
+		return store.S3CredentialIAM
+	default:
+		return store.S3CredentialUnknown
+	}
+}
+
 // Check ... verifies that configuration values are adequately set
 func (cfg *Config) Check() error {
 	l, err := cfg.GetMaxBlobLength()
@@ -188,9 +200,14 @@ func (cfg *Config) Check() error {
 		return fmt.Errorf("eth confirmation depth is set for certificate verification, but Eth RPC or SvcManagerAddr is not set")
 	}
 
-	// if cfg.S3Config.Endpoint != "" && (cfg.S3Config.AccessKeyID == "" || cfg.S3Config.AccessKeySecret == "") {
-	// 	return fmt.Errorf("s3 endpoint is set, but access key id or access key secret is not set")
-	// }
+	if cfg.S3Config.S3CredentialType == store.S3CredentialUnknown {
+		return fmt.Errorf("s3 credential type must be set")
+	}
+	if cfg.S3Config.S3CredentialType == store.S3CredentialStatic {
+		if cfg.S3Config.Endpoint != "" && (cfg.S3Config.AccessKeyID == "" || cfg.S3Config.AccessKeySecret == "") {
+			return fmt.Errorf("s3 endpoint is set, but access key id or access key secret is not set")
+		}
+	}
 
 	if !cfg.MemstoreEnabled && cfg.ClientConfig.RPC == "" {
 		return fmt.Errorf("eigenda disperser rpc url is not set")
@@ -308,6 +325,11 @@ func CLIFlags(envPrefix string) []cli.Flag {
 			EnvVars: []string{"MEMSTORE_EXPIRATION"},
 		},
 		&cli.StringFlag{
+			Name:    S3CredentialTypeFlagName,
+			Usage:   "The way to authenticate to S3, options are [iam, static]",
+			EnvVars: prefixEnvVars("S3_CREDENTIAL_TYPE"),
+		},
+		&cli.StringFlag{
 			Name:    S3BucketFlagName,
 			Usage:   "bucket name for S3 storage",
 			EnvVars: prefixEnvVars("S3_BUCKET"),
@@ -333,6 +355,12 @@ func CLIFlags(envPrefix string) []cli.Flag {
 			Usage:   "access key secret for S3 storage",
 			Value:   "",
 			EnvVars: prefixEnvVars("S3_ACCESS_KEY_SECRET"),
+		},
+		&cli.BoolFlag{
+			Name:    S3BackupFlagName,
+			Usage:   "Backup to S3 (works with Eigenda).",
+			Value:   false,
+			EnvVars: prefixEnvVars("S3_BACKUP"),
 		},
 	}
 }
