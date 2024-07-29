@@ -16,12 +16,6 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-// const (
-// 	S3CredentialStatic  S3CredentialType = "static"
-// 	S3CredentialIAM     S3CredentialType = "iam"
-// 	S3CredentialUnknown S3CredentialType = "unknown"
-// )
-
 const (
 	EigenDADisperserRPCFlagName          = "eigenda-disperser-rpc"
 	EthRPCFlagName                       = "eigenda-eth-rpc"
@@ -139,12 +133,12 @@ func (c *Config) VerificationCfg() *verify.Config {
 func ReadConfig(ctx *cli.Context) Config {
 	cfg := Config{
 		S3Config: store.S3Config{
-			Authentication:  toS3CredentialType(ctx.String(S3CredentialTypeFlagName)),
-			Bucket:          ctx.String(S3BucketFlagName),
-			Path:            ctx.String(S3PathFlagName),
-			Endpoint:        ctx.String(S3EndpointFlagName),
-			AccessKeyID:     ctx.String(S3AccessKeyIDFlagName),
-			AccessKeySecret: ctx.String(S3AccessKeySecretFlagName),
+			S3CredentialType: toS3CredentialType(ctx.String(S3CredentialTypeFlagName)),
+			Bucket:           ctx.String(S3BucketFlagName),
+			Path:             ctx.String(S3PathFlagName),
+			Endpoint:         ctx.String(S3EndpointFlagName),
+			AccessKeyID:      ctx.String(S3AccessKeyIDFlagName),
+			AccessKeySecret:  ctx.String(S3AccessKeySecretFlagName),
 		},
 		ClientConfig: clients.EigenDAClientConfig{
 			RPC:                          ctx.String(EigenDADisperserRPCFlagName),
