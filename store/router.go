@@ -55,21 +55,18 @@ func (r *Router) Get(ctx context.Context, key []byte, cm commitments.CommitmentM
 			return r.mem.Get(ctx, key)
 		}
 
-		if r.s3 == nil {
-			return nil, errors.New("expected S3 backend for OP keccak256 commitment type, but none configured")
-		}
-
-		r.log.Info("Retrieving data from S3 backend")
-		s3Value, err := r.s3.Get(ctx, key)
-		if err != nil {
-			return nil, err
-		}
-
 		r.log.Info("Retrieving data from eigenda")
 		eigenDAvalue, err := r.eigenda.Get(ctx, key)
 
-		if utils.EqualSlices(eigenDAvalue, s3Value) {
-			r.log.Info("expected data to be equal eigenDAvalue %s and s3Value %s", hexutil.Encode(eigenDAvalue), hexutil.Encode(s3Value))
+		if r.s3 != nil && r.s3.cfg.Backup {
+			r.log.Info("Retrieving data from S3 backend to compare")
+			s3Value, err := r.s3.Get(ctx, key)
+			if err != nil {
+				return nil, err
+			}
+			if utils.EqualSlices(eigenDAvalue, s3Value) {
+				r.log.Info("expected data to be equal eigenDAvalue %s and s3Value %s", hexutil.Encode(eigenDAvalue), hexutil.Encode(s3Value))
+			}
 		}
 
 		return eigenDAvalue, err
