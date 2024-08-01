@@ -55,21 +55,8 @@ func (r *Router) Get(ctx context.Context, key []byte, cm commitments.CommitmentM
 			return r.mem.Get(ctx, key)
 		}
 
-		r.log.Info("Retrieving data from eigenda")
-		eigenDAvalue, err := r.eigenda.Get(ctx, key)
-
-		if r.s3 != nil && r.s3.cfg.Backup {
-			r.log.Info("Retrieving data from S3 backend to compare")
-			s3Value, err := r.s3.Get(ctx, key)
-			if err != nil {
-				return nil, err
-			}
-			if utils.EqualSlices(eigenDAvalue, s3Value) {
-				r.log.Info("expected data to be equal eigenDAvalue %s and s3Value %s", hexutil.Encode(eigenDAvalue), hexutil.Encode(s3Value))
-			}
-		}
-
-		return eigenDAvalue, err
+		r.log.Debug("Retrieving data from eigenda")
+		return r.eigenda.Get(ctx, key)
 
 	default:
 		return nil, errors.New("could not determine which storage backend to route to based on unknown commitment mode")
@@ -100,7 +87,7 @@ func (r *Router) PutWithoutKey(ctx context.Context, value []byte) (key []byte, e
 	}
 
 	if r.eigenda != nil {
-		r.log.Debug("Storing data to eigenda backend")
+		r.log.Info("Storing data to eigenda backend")
 		result, err := r.eigenda.Put(ctx, value)
 		if err != nil {
 			if r.s3 != nil && r.s3.cfg.Backup {

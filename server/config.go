@@ -37,8 +37,8 @@ const (
 	MemstoreFlagName           = "memstore.enabled"
 	MemstoreExpirationFlagName = "memstore.expiration"
 	// S3 flags
-	S3CredentialTypeFlagName  = "s3.credential-type"
-	S3BucketFlagName          = "s3.bucket"
+	S3CredentialTypeFlagName  = "s3.credential-type" // #nosec G101
+	S3BucketFlagName          = "s3.bucket"          // #nosec G101
 	S3PathFlagName            = "s3.path"
 	S3EndpointFlagName        = "s3.endpoint"
 	S3AccessKeyIDFlagName     = "s3.access-key-id"     // #nosec G101
@@ -169,12 +169,14 @@ func ReadConfig(ctx *cli.Context) Config {
 }
 
 func toS3CredentialType(s string) store.S3CredentialType {
-	if s == string(store.S3CredentialStatic) {
+	switch s {
+	case string(store.S3CredentialStatic):
 		return store.S3CredentialStatic
-	} else if s == string(store.S3CredentialIAM) {
+	case string(store.S3CredentialIAM):
 		return store.S3CredentialIAM
+	default:
+		return store.S3CredentialUnknown
 	}
-	return store.S3CredentialUnknown
 }
 
 // Check ... verifies that configuration values are adequately set
@@ -360,7 +362,7 @@ func CLIFlags(envPrefix string) []cli.Flag {
 			Name:    S3BackupFlagName,
 			Usage:   "Backup to S3 (works with Eigenda).",
 			Value:   false,
-			EnvVars: prefixEnvVars("S3_ BACKUP"),
+			EnvVars: prefixEnvVars("S3_BACKUP"),
 		},
 	}
 }
