@@ -127,3 +127,31 @@ func (e EigenDAStore) Put(ctx context.Context, value []byte) (comm []byte, err e
 func (e EigenDAStore) Stats() *Stats {
 	return nil
 }
+
+// Get fetches a blob from DA using certificate fields and verifies blob
+// against commitment to ensure data is valid and non-tampered.
+func (e EigenDAStore) DecodeAndVerify(ctx context.Context, key []byte, blob []byte) ([]byte, error) {
+	var cert verify.Certificate
+	err := rlp.DecodeBytes(key, &cert)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode DA cert to RLP format: %w", err)
+	}
+
+	decodedBlob, err := e.client.GetCodec().DecodeBlob(blob)
+	if err != nil {
+		return nil, fmt.Errorf("error decoding blob: %w", err)
+	}
+	
+	// reencode blob for verification
+	encodedBlob, err := e.client.GetCodec().EncodeBlob(decodedBlob)
+	if err != nil {
+		return nil, fmt.Errorf("EigenDA client failed to re-encode blob: %w", err)
+	}
+
+	err = e.verifier.VerifyCommitment(cert.BlobHeader.Commitment, encodedBlob)
+	if err != nil {
+		return nil, err
+	}
+
+	return decodedBlob, nil
+}
