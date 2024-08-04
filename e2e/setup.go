@@ -106,7 +106,7 @@ func CreateTestSuite(t *testing.T, useMemory bool, useS3 bool) (TestSuite, func(
 				AccessKeySecret:  "minioadmin",
 				AccessKeyID:      "minioadmin",
 				S3CredentialType: store.S3CredentialStatic,
-				Backup:           true,
+				Backup:           false,
 			},
 		}
 	} else {
