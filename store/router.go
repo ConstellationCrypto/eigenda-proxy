@@ -63,7 +63,7 @@ func (r *Router) Get(ctx context.Context, key []byte, cm commitments.CommitmentM
 				return nil, err
 			}
 			r.log.Info("Got data from S3 now verifying")
-			return r.eigenda.DecodeAndVerify(ctx, key, value)
+			return r.eigenda.EncodeAndVerify(ctx, key, value)
 
 		} else {
 			return r.eigenda.Get(ctx, key)
@@ -92,7 +92,6 @@ func (r *Router) Put(ctx context.Context, cm commitments.CommitmentMode, key, va
 }
 
 // PutWithoutKey ...
-//https://github.com/ConstellationCrypto/celestia-bedrock/blob/v1.7.6/op-batcher/batcher/driver.go
 func (r *Router) PutWithoutKey(ctx context.Context, value []byte) (key []byte, err error) {
 	if r.mem != nil {
 		r.log.Debug("Storing data to memstore")
@@ -106,18 +105,12 @@ func (r *Router) PutWithoutKey(ctx context.Context, value []byte) (key []byte, e
 		if err == nil {
 			if r.s3 != nil && r.s3.cfg.Backup {
 				r.log.Info("Storing data to S3 backend with key", "key", crypto.Keccak256(result))
-				//commitment := crypto.Keccak256(value)
 				ctx2, cancel := context.WithTimeout(ctx, time.Minute)
-				//if actualHash := crypto.Keccak256(value); !utils.EqualSlices(actualHash, commitment.GetX()) {
-					//r.log.Info("Keccak hash of value and X commitment were the same!", "actualHash", actualHash, "commitment.GetX()", commitment.GetX())
-					err = r.s3.Put(ctx2, crypto.Keccak256(result), value)
-					cancel()
-					if err != nil {
-						return nil, err
-					}
-				// } else {
-				// 	r.log.Info("Keccak hash of value and X commitment were not the same!")
-				// }
+				err = r.s3.Put(ctx2, crypto.Keccak256(result), value)
+				cancel()
+				if err != nil {
+					return nil, err
+				}
 			}
 		}
 		return result, err
