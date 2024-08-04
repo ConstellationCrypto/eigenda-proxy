@@ -28,6 +28,7 @@ type S3Config struct {
 	AccessKeyID      string
 	AccessKeySecret  string
 	Profiling        bool
+	Backup           bool
 }
 
 type S3Store struct {
@@ -56,7 +57,6 @@ func NewS3(cfg S3Config) (*S3Store, error) {
 }
 
 func (s *S3Store) Get(ctx context.Context, key []byte) ([]byte, error) {
-
 	result, err := s.client.GetObject(ctx, s.cfg.Bucket, path.Join(s.cfg.Path, hex.EncodeToString(key)), minio.GetObjectOptions{})
 	if err != nil {
 		errResponse := minio.ToErrorResponse(err)
